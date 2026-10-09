@@ -1,0 +1,598 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Roulette Streak Lab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one felt table. Wheel on the left, the results rail and betting controls on the right;
+   the experimenter's console is a separate drawer that the participant never sees. Single dark look by choice. */
+:root{
+  color-scheme:dark;
+  --felt:#11402f; --felt-deep:#0a2a20; --felt-line:#2b6a52;
+  --ivory:#efe6d2; --muted:#a3b8ab; --brass:#cfa85a; --brass-dim:#8a6f38;
+  --red:#b8282d; --black:#15181b; --green:#1f9159; --ink:#0c1512;
+  --panel:#101815; --panel-2:#18231f; --panel-line:#2c3b35; --warn:#e2a13a; --ok:#58c48d;
+  --display:"Bodoni Moda","Didot","Times New Roman",serif;
+  --body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:radial-gradient(120% 90% at 30% 20%,var(--felt) 0%,var(--felt-deep) 70%);background-color:var(--felt-deep);
+  color:var(--ivory);font-family:var(--body);font-size:16px;line-height:1.45;padding-inline:16px;padding-block:20px 40px}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;
+  border-bottom:1px solid var(--felt-line);padding-bottom:14px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(1.7rem,4.5vw,2.5rem);line-height:1;margin:0;letter-spacing:.01em;text-wrap:balance}
+.plate{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  user-select:none;margin-top:8px;display:inline-block}
+.meters{display:flex;gap:16px 28px;align-items:flex-end;flex-wrap:wrap}
+.parts{display:flex;gap:8px;align-items:center}
+.part{width:46px;height:46px;border:1px solid var(--felt-line);background:rgba(0,0,0,.22);border-radius:4px;font-family:var(--display);font-size:1.35rem;font-weight:700}
+.part[aria-pressed="true"]{background:var(--ivory);color:var(--ink);border-color:var(--ivory)}
+.rec{width:8px;height:8px;border-radius:50%;border:1px solid var(--muted);margin-left:4px}
+.rec.on{background:var(--red);border-color:var(--red)}
+.meter .lab{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.meter .val{font-family:var(--display);font-size:1.7rem;font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums}
+.meter .val small{font-family:var(--body);font-size:.85rem;color:var(--muted)}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:760px){main{grid-template-columns:minmax(0,1fr)}}
+
+.wheelbox{position:relative;width:100%;max-width:440px;margin:0 auto;aspect-ratio:1}
+.wheelbox canvas{width:100%;height:100%;display:block}
+.pointer{position:absolute;left:50%;top:-4px;transform:translateX(-50%);width:0;height:0;
+  border-left:11px solid transparent;border-right:11px solid transparent;border-top:22px solid var(--ivory);
+  filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+.hub{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.hub div{width:34%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;text-align:center;
+  background:var(--ink);border:2px solid var(--brass-dim);font-family:var(--display);font-size:clamp(1.05rem,5vw,1.7rem);font-weight:700;
+  font-variant-numeric:tabular-nums;transition:background .3s}
+.hub div[data-c="R"]{background:var(--red)} .hub div[data-c="B"]{background:var(--black)} .hub div[data-c="G"]{background:var(--green)}
+
+.side{display:flex;flex-direction:column;gap:22px;min-width:0}
+.lab2{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.rail{display:flex;gap:6px;flex-wrap:wrap;min-height:38px;align-items:center}
+.disc{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:.8rem;font-weight:600;
+  border:1px solid rgba(239,230,210,.28);font-variant-numeric:tabular-nums}
+.disc.R{background:var(--red)} .disc.B{background:var(--black)} .disc.G{background:var(--green)}
+.disc.last{outline:2px solid var(--brass);outline-offset:2px}
+.rail .empty{color:var(--muted);font-size:.9rem}
+
+.bets{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bet{border:1px solid rgba(239,230,210,.3);border-radius:4px;padding:18px 10px;font-family:var(--display);font-size:1.5rem;font-weight:700;
+  letter-spacing:.04em;transition:transform .12s,box-shadow .12s}
+.bet.R{background:var(--red)} .bet.B{background:var(--black)}
+.bet[aria-pressed="true"]{box-shadow:0 0 0 3px var(--brass);transform:translateY(-2px)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.chip{min-width:56px;padding:9px 12px;border-radius:999px;border:1px dashed var(--brass-dim);background:transparent;
+  font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{background:var(--brass);color:var(--ink);border-style:solid;border-color:var(--brass)}
+.conf{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.conf button{padding:9px 0;border-radius:4px;border:1px solid var(--felt-line);background:rgba(0,0,0,.18);font-family:var(--mono)}
+.conf button[aria-pressed="true"]{background:var(--ivory);color:var(--ink);border-color:var(--ivory)}
+.ends{display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-top:5px}
+.spin{width:100%;padding:16px;border:0;border-radius:4px;background:var(--brass);color:var(--ink);font-weight:600;font-size:1.05rem;letter-spacing:.08em;text-transform:uppercase}
+button:disabled{opacity:.42;cursor:not-allowed}
+.msg{min-height:1.5em;font-size:1rem;margin:0}
+.msg b{font-weight:600}
+.done{border:1px solid var(--brass-dim);background:rgba(0,0,0,.28);padding:22px;border-radius:4px}
+.done h2{font-family:var(--display);margin:0 0 6px;font-size:1.5rem}
+.done p{margin:0;color:var(--muted)}
+.done p.countdown{margin-top:14px;color:var(--ivory);font-family:var(--display);font-size:1.25rem;font-variant-numeric:tabular-nums}
+
+/* experimenter console */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10;display:flex;justify-content:flex-end}
+.console{width:min(100%,620px);height:100%;overflow-y:auto;background:var(--panel);border-left:1px solid var(--panel-line);
+  padding:calc(18px + env(safe-area-inset-top,0px)) 20px calc(40px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:22px}
+.console h2{font-family:var(--display);font-size:1.5rem;margin:0}
+.console h3{font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);margin:0 0 10px;font-weight:600}
+.chead{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.console section{border-top:1px solid var(--panel-line);padding-top:16px;display:flex;flex-direction:column;gap:12px}
+.console label{display:flex;flex-direction:column;gap:5px;font-size:.84rem;color:var(--muted);min-width:0}
+.console .row label{flex:1 1 140px}
+.console label.chk{flex-direction:row;align-items:center;gap:8px;flex:0 0 auto;color:var(--ivory)}
+.console input[type=text],.console input[type=number],.console textarea{background:var(--panel-2);border:1px solid var(--panel-line);
+  border-radius:4px;padding:9px 10px;color:var(--ivory);width:100%;min-width:0}
+.console textarea{font-family:var(--mono);font-size:.9rem;min-height:74px;resize:vertical}
+.btn{background:var(--panel-2);border:1px solid var(--panel-line);border-radius:4px;padding:9px 13px;font-size:.9rem}
+.btn.pri{background:var(--brass);border-color:var(--brass);color:var(--ink);font-weight:600}
+.btn.danger{border-color:var(--red);color:#f0a3a5}
+.btn.sm{padding:6px 10px;font-size:.82rem}
+.note{font-size:.84rem;color:var(--muted);margin:0}
+.note code,.legend code{font-family:var(--mono);color:var(--ivory);background:var(--panel-2);padding:1px 5px;border-radius:3px}
+.legend{font-size:.84rem;color:var(--muted);display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0}
+.status{font-family:var(--mono);font-size:.84rem;padding:8px 10px;background:var(--panel-2);border-radius:4px;border-left:3px solid var(--panel-line);overflow-wrap:anywhere}
+.status.on{border-left-color:var(--ok)} .status.warn{border-left-color:var(--warn)}
+.preview{display:flex;gap:5px;flex-wrap:wrap}
+.tok{font-family:var(--mono);font-size:.78rem;min-width:28px;text-align:center;padding:4px 6px;border-radius:3px;border:1px solid var(--panel-line)}
+.tok.R{background:var(--red)} .tok.B{background:var(--black)} .tok.G{background:var(--green)} .tok.bad{border-color:var(--warn);color:var(--warn)}
+.tablewrap{overflow-x:auto;border:1px solid var(--panel-line);border-radius:4px;max-height:320px}
+table{border-collapse:collapse;font-family:var(--mono);font-size:.76rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+th,td{padding:5px 9px;text-align:left;border-bottom:1px solid var(--panel-line)}
+th{position:sticky;top:0;background:var(--panel-2);color:var(--muted);font-weight:600}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="plate" style="user-select:none">Roulette</h1>
+    </div>
+    <div class="meters">
+      <div class="parts" id="parts" role="group" aria-label="Part"></div>
+      <div class="meter"><div class="lab">Your money</div><div class="val" id="balVal">$10</div></div>
+      <div class="meter"><div class="lab">Goal</div><div class="val" id="goalVal">$40</div></div>
+    </div>
+  </header>
+
+  <main>
+    <div class="wheelbox">
+      <canvas id="wheel" width="880" height="880" aria-label="Roulette wheel" role="img"></canvas>
+      <div class="pointer"></div>
+      <div class="hub"><div id="hub">–</div></div>
+    </div>
+
+    <div class="side">
+      <div>
+        <p class="lab2">Previous results, oldest to newest</p>
+        <div class="rail" id="rail"></div>
+      </div>
+
+      <div id="play" style="display:flex;flex-direction:column;gap:22px">
+        <div>
+          <p class="lab2">Where will the ball land next?</p>
+          <div class="bets">
+            <button class="bet R" id="betR" aria-pressed="false">Red</button>
+            <button class="bet B" id="betB" aria-pressed="false">Black</button>
+          </div>
+        </div>
+        <div>
+          <p class="lab2">How much will you bet? Up to $5</p>
+          <div class="row" id="stakes"></div>
+        </div>
+        <button class="spin" id="spin" disabled>Spin</button>
+      </div>
+      <div class="done" id="done" hidden>
+        <h2 id="doneH"></h2>
+        <p id="doneP"></p>
+        <p id="countdown" class="countdown" hidden></p>
+        <button class="btn" id="again" style="margin-top:14px" hidden>Restart practice</button>
+      </div>
+      <p class="msg" id="msg" aria-live="polite">Pick a colour to begin.</p>
+    </div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="console" role="dialog" aria-label="Experimenter console">
+    <div class="chead"><h2>Experimenter console</h2><button class="btn" id="closeC">Close</button></div>
+    <p class="note">Open with <code>Shift</code>+<code>E</code> or by triple-clicking the “Roulette” title. Participants never see this.</p>
+
+    <section>
+      <h3>Session</h3>
+      <div class="status" id="sessStatus"></div>
+      <div class="row">
+        <label>Participant ID<input type="text" id="pid" placeholder="P001" autocomplete="off"></label>
+      </div>
+      <div class="row">
+        <button class="btn pri" id="startS">Start recorded session</button>
+        <button class="btn" id="endS">End session</button>
+      </div>
+      <p class="note">Starting a session resets the money, the round counter and the results rail, then records every spin.</p>
+      <div class="row">
+        <button class="btn pri" id="autoS">Start back-to-back sessions</button>
+        <button class="btn" id="autoStop" hidden>Stop after this participant</button>
+      </div>
+      <p class="note"><b>Back-to-back:</b> starts recording the ID above (or P001 if it's empty). When that person finishes Part 2, the table counts down 5 seconds and starts the next ID automatically (P001 → P002 → P003…), skipping any ID already recorded on this device.</p>
+    </section>
+
+    <section>
+      <h3>Google Sheet</h3>
+      <div class="status" id="sheetStatus"></div>
+      <div class="row">
+        <label>Web app URL (ends in /exec)<input type="text" id="sheetUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false"></label>
+      </div>
+      <div class="row">
+        <button class="btn pri" id="saveSheet">Save link</button>
+        <button class="btn" id="testSheet">Test connection</button>
+        <button class="btn" id="syncSheet">Send now</button>
+      </div>
+      <p class="note">Every spin is sent to the Sheet as it happens. If the connection drops, spins wait on this device and are sent automatically once it is back. Each participant gets their own tab, plus an <b>All spins</b> tab.</p>
+    </section>
+
+    <section>
+      <h3>Game settings</h3>
+      <p class="note"><b>Part 1</b> is the control: a fair 50/50 wheel. When it ends (goal reached, out of money, or maximum rounds) the table moves to <b>Part 2</b> by itself with fresh starting money. Part 2 is assigned at random, 50/50, to land on red 85% of the time or on black 85% of the time. The session status above shows which one this participant got. Clicking box 1 or 2 on the table jumps straight to that part.</p>
+      <div class="row">
+        <label>Starting money ($)<input type="number" id="startBal" min="1" max="1000"></label>
+        <label>Winning goal ($)<input type="number" id="goal" min="2" max="10000"></label>
+        <label>Maximum rounds<input type="number" id="nTrials" min="1" max="500"></label>
+      </div>
+      <p class="note">A session ends when the participant reaches the goal, runs out of money, or hits the maximum rounds.</p>
+      <div class="row"><button class="btn pri" id="saveCfg">Save settings</button><span class="note" id="cfgSaved" style="align-self:center"></span></div>
+    </section>
+
+    <section>
+      <h3>Force the next spin</h3>
+      <div class="status" id="forceStatus"></div>
+      <div class="row" id="forceBtns"></div>
+      <div class="row">
+        <button class="btn" id="forceClear">Cancel</button>
+      </div>
+      <p class="note">Overrides the current part for one spin only.</p>
+    </section>
+
+    <section>
+      <h3>Collected data</h3>
+      <div class="status" id="dataStatus"></div>
+      <div class="tablewrap"><table id="tbl"></table></div>
+      <div class="row">
+        <button class="btn" id="refresh">Refresh</button>
+        <button class="btn" id="copyCsv">Copy as CSV</button>
+        <button class="btn" id="saveCsv" hidden>Save CSV file</button>
+        <button class="btn danger" id="wipe">Delete all data</button>
+      </div>
+      <textarea id="csvOut" hidden readonly aria-label="CSV data"></textarea>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const N=36;const colorOf=c=>c;
+function partInfo(){return st.part===2?(st.bias==="B"?{p:0.15,label:"black-85"}:{p:0.85,label:"red-85"}):{p:0.5,label:"control"}}
+const NAME={R:"red",B:"black",G:"green"};
+const STAKES=[1,2,3,4,5];
+const TOKEN=/^(R|B|W|L)$/i;
+const DEFAULTS={nTrials:30,startBalance:10,goal:40,session:null,force:null,auto:false};
+/* Paste your Apps Script web app URL here so every device uses it without setup.
+   It can also be set (or overridden) per device in the experimenter console. */
+const SHEET_URL="https://script.google.com/macros/s/AKfycbw3Ew8W1bsxKiRdEBiVAkFCR2Zl8NtLPAvBfm2IcO3Sov0Lj6iVzzxBmb4dKpCY3uL0/exec";
+const COLS=["session_id","participant_id","part","part_label","p_red","run_id","trial","bet_color","stake","outcome_color","won","payout","balance_after","status","prior_streak_color","prior_streak_length","bet_against_streak","rt_ms","outcome_source","timestamp"];
+
+/* ---------- storage ---------- */
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+          set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let cfg=Object.assign({},DEFAULTS,ls.get("gf_cfg3",{}));
+let st=ls.get("gf_state4",null);
+let localTrials=ls.get("gf_trials",[]);
+let db=null,downloads=null,canAdmin=true,allTrials=[];
+
+function freshState(){
+  const part=(st&&st.part)||1;
+  return {sid:cfg.session?cfg.session.id:null,part:part,bias:part===2?(rnd(2)?"R":"B"):"",run:Date.now().toString(36),trial:0,balance:cfg.startBalance,history:[],nonce:st?st.nonce:null};
+}
+if(!st||st.sid!==(cfg.session?cfg.session.id:null)) st=freshState();
+const saveState=()=>ls.set("gf_state4",st);
+
+/* ---------- outcome logic ---------- */
+function tokens(s){return String(s||"").split(/[\s,]+/).filter(Boolean)}
+function rnd(n){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}
+function resolve(tok,bet){tok=String(tok).toUpperCase();if(tok==="W")return bet;if(tok==="L")return bet==="R"?"B":"R";return tok==="B"?"B":"R"}
+function drawColor(){return rnd(10000)<partInfo().p*10000?"R":"B"}
+function streak(){
+  const h=st.history; if(!h.length) return {c:"",n:0};
+  const c=colorOf(h[h.length-1]); let n=0;
+  for(let i=h.length-1;i>=0&&colorOf(h[i])===c;i--) n++;
+  return {c,n};
+}
+
+/* ---------- wheel ---------- */
+const cv=$("wheel"),ctx=cv.getContext("2d"),SEG=Math.PI*2/N;
+const css=getComputedStyle(document.documentElement),V=n=>css.getPropertyValue(n).trim();
+const COL={R:V("--red"),B:V("--black"),G:V("--green"),ivory:V("--ivory"),brass:V("--brass"),dim:V("--brass-dim"),ink:V("--ink")};
+let rot=-Math.PI/2-SEG/2,spinning=false;
+function draw(){
+  const W=cv.width,c=W/2,R=c-8;
+  ctx.clearRect(0,0,W,W);
+  ctx.beginPath();ctx.arc(c,c,R,0,7);ctx.fillStyle=COL.dim;ctx.fill();
+  ctx.beginPath();ctx.arc(c,c,R-10,0,7);ctx.fillStyle=COL.ink;ctx.fill();
+  for(let i=0;i<N;i++){
+    const a=rot+i*SEG;
+    ctx.beginPath();ctx.moveTo(c,c);ctx.arc(c,c,R-16,a,a+SEG);ctx.closePath();
+    ctx.fillStyle=COL[i%2?"B":"R"];ctx.fill();
+    ctx.strokeStyle=COL.brass;ctx.lineWidth=1.5;ctx.stroke();
+  }
+  ctx.beginPath();ctx.arc(c,c,R*0.62,0,7);ctx.fillStyle=COL.ink;ctx.fill();
+  ctx.strokeStyle=COL.dim;ctx.lineWidth=3;ctx.stroke();
+  for(let k=0;k<8;k++){const a=rot*0.999+k*Math.PI/4;ctx.beginPath();ctx.moveTo(c+Math.cos(a)*R*0.2,c+Math.sin(a)*R*0.2);
+    ctx.lineTo(c+Math.cos(a)*R*0.6,c+Math.sin(a)*R*0.6);ctx.strokeStyle=COL.dim;ctx.lineWidth=2;ctx.stroke();}
+}
+function animateTo(n,done){
+  const reduced=matchMedia("(prefers-reduced-motion:reduce)").matches;
+  const T=Math.PI*2,target=-Math.PI/2-(n+0.5)*SEG,from=rot;
+  const delta=(((target-from)%T)+T)%T+T*(reduced?1:5),dur=reduced?600:4400,t0=performance.now();
+  let finished=false;
+  const end=()=>{if(finished)return;finished=true;rot=from+delta;draw();done()};
+  const step=now=>{if(finished)return;const p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,4);rot=from+delta*e;draw();p<1?requestAnimationFrame(step):end()};
+  requestAnimationFrame(step);
+  setTimeout(end,dur+400); /* background tabs pause animation frames */
+}
+
+/* ---------- participant UI ---------- */
+let bet=null,stake=STAKES[0],readyAt=performance.now(),advT=0;
+/* back-to-back: after Part 2 ends, count down and start the next participant */
+const AUTO_SECS=5;let autoT=0;
+function nextPid(pid){
+  const used=new Set(localTrials.map(r=>String(r.participant_id)));
+  let p=String(pid||"P000");
+  do{const m=p.match(/^(.*?)(\d+)$/);p=m?m[1]+String(+m[2]+1).padStart(m[2].length,"0"):p+"-2"}while(used.has(p));
+  return p;
+}
+function maybeNext(){
+  if(autoT||!cfg.auto||!cfg.session||st.part!==2||!endState()) return;
+  const sid=cfg.session.id,until=Date.now()+AUTO_SECS*1000,cd=$("countdown");
+  const tick=()=>{
+    if(!cfg.auto||!cfg.session||cfg.session.id!==sid){clearInterval(autoT);autoT=0;cd.hidden=true;return}
+    const left=Math.ceil((until-Date.now())/1000);
+    if(left>0){cd.hidden=false;cd.textContent="Next player starts in "+left+"…";return}
+    clearInterval(autoT);autoT=0;cd.hidden=true;
+    startSession(nextPid(cfg.session.pid));
+  };
+  autoT=setInterval(tick,250);tick();
+}
+function maybeAdvance(){
+  maybeNext();
+  if(!endState()||st.part!==1||advT) return;
+  advT=setTimeout(()=>{advT=0;if(st.part!==1||!endState())return;st.part=2;st=freshState();saveState();bet=null;readyAt=performance.now();
+    $("msg").textContent="Part 2. Pick a colour to begin.";renderTable();if(!$("scrim").hidden)renderConsole(false)},2600);
+}
+STAKES.forEach(v=>{const b=document.createElement("button");b.className="chip";b.textContent="$"+v;b.dataset.v=v;
+  b.onclick=()=>{if(spinning)return;stake=v;renderControls()};$("stakes").appendChild(b)});
+[1,2].forEach(p=>{const b=document.createElement("button");b.className="part";b.textContent=p;b.dataset.p=p;b.setAttribute("aria-label","Part "+p);
+  b.onclick=()=>{if(spinning)return;clearTimeout(advT);advT=0;st.part=p;st=freshState();saveState();bet=null;readyAt=performance.now();$("msg").textContent="Pick a colour to begin.";renderTable();if(!$("scrim").hidden)renderConsole(false)};$("parts").appendChild(b)});
+{const r=document.createElement("span");r.className="rec";r.id="rec";$("parts").appendChild(r)}
+$("again").onclick=()=>{st=freshState();saveState();bet=null;readyAt=performance.now();$("msg").textContent="Pick a colour to begin.";renderTable()};
+$("betR").onclick=()=>{if(spinning)return;bet="R";renderControls()};
+$("betB").onclick=()=>{if(spinning)return;bet="B";renderControls()};
+$("spin").onclick=spin;
+
+function endState(){
+  if(st.balance>=cfg.goal) return "won";
+  if(st.balance<1) return "bust";
+  if(cfg.session&&st.trial>=cfg.nTrials) return "max_rounds";
+  return "";
+}
+function sessionOver(){return !!endState()}
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+function renderControls(){
+  if(stake>st.balance) stake=Math.max(1,Math.floor(st.balance));
+  $("betR").setAttribute("aria-pressed",bet==="R");$("betB").setAttribute("aria-pressed",bet==="B");
+  $("stakes").querySelectorAll("button").forEach(b=>{b.setAttribute("aria-pressed",+b.dataset.v===stake);b.disabled=+b.dataset.v>st.balance||spinning});
+  $("spin").disabled=spinning||!bet;
+  const es=endState();
+  $("play").hidden=!!es;$("done").hidden=!es;$("play").style.display=es?"none":"flex";
+  if(es){
+    $("doneH").textContent=es==="won"?"You reached $"+cfg.goal+". You win!":es==="bust"?"You are out of money.":"That was the last round.";
+    $("doneP").textContent="Thank you for playing. Please let the experimenter know you have finished.";
+    $("again").hidden=!!cfg.session;
+    if(st.part===1){if(es==="won")$("doneH").textContent="You reached $"+cfg.goal+".";$("doneP").textContent="Part 2 starts in a moment with a fresh $"+cfg.startBalance+".";$("again").hidden=true}
+    else if(cfg.auto&&cfg.session) $("doneP").textContent="Thank you for playing. Please hand over to the next player.";
+  }
+  if(!es||st.part!==2||!cfg.auto||!cfg.session) $("countdown").hidden=true;
+}
+function renderTable(){
+  $("balVal").textContent="$"+st.balance;$("goalVal").textContent="$"+cfg.goal;
+  $("parts").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.p===st.part));
+  $("rec").className="rec"+(cfg.session?" on":"");$("rec").title=cfg.session?"Recording":"Not recording";
+  const rail=$("rail");rail.textContent="";
+  const h=st.history.slice(-16);
+  if(!h.length){const e=document.createElement("span");e.className="empty";e.textContent="No spins yet.";rail.appendChild(e)}
+  h.forEach((n,i)=>{const d=document.createElement("span"),c=colorOf(n);d.className="disc "+c+(i===h.length-1?" last":"");d.title=cap(NAME[c]);d.setAttribute("aria-label",NAME[c]);d.setAttribute("role","img");rail.appendChild(d)});
+  const hub=$("hub");
+  if(st.history.length){const c=colorOf(st.history[st.history.length-1]);hub.textContent=cap(NAME[c]);hub.dataset.c=c}else{hub.textContent="–";hub.dataset.c=""}
+  renderControls();
+}
+function spin(){
+  if(spinning||!bet||sessionOver()) return;
+  const rt=Math.round(performance.now()-readyAt),t=st.trial,sk=streak(),myBet=bet,myStake=Math.min(stake,st.balance);
+  let c,src="part"+st.part;
+  if(cfg.force&&cfg.force.nonce!==st.nonce){c=resolve(cfg.force.token,myBet);src="forced:"+cfg.force.token;st.nonce=cfg.force.nonce;saveState();writeCfg({force:null})}
+  else c=drawColor();
+  const idx=rnd(N/2)*2+(c==="B"?1:0),part=st.part,run=st.run,info=partInfo();
+  spinning=true;$("hub").textContent="";$("hub").dataset.c="";$("msg").textContent="No more bets…";renderControls();
+  animateTo(idx,()=>{
+    const won=c===myBet,payout=won?myStake:-myStake;
+    st.balance+=payout;st.history.push(c);st.trial=t+1;
+    const m=$("msg");m.textContent="";const b=document.createElement("b");b.textContent=cap(NAME[c])+". ";m.appendChild(b);
+    m.appendChild(document.createTextNode(won?"You win $"+myStake+".":"You lose $"+myStake+"."));
+    if(cfg.session) record({session_id:cfg.session.id,participant_id:cfg.session.pid,part:part,part_label:info.label,p_red:info.p,run_id:run,trial:t+1,bet_color:NAME[myBet],
+      stake:myStake,outcome_color:NAME[c],won:won,payout:payout,balance_after:st.balance,status:endState()||"playing",
+      prior_streak_color:sk.c?NAME[sk.c]:"",prior_streak_length:sk.n,bet_against_streak:(sk.c==="R"||sk.c==="B")?myBet!==sk.c:"",
+      rt_ms:rt,outcome_source:src,timestamp:new Date().toISOString()});
+    saveState();spinning=false;bet=null;readyAt=performance.now();renderTable();maybeAdvance();
+    if(!$("scrim").hidden) renderConsole();
+  });
+}
+
+/* ---------- data ---------- */
+const docId=r=>(r.session_id+"-"+r.run_id+"-t"+String(r.trial).padStart(3,"0")).replace(/[^A-Za-z0-9_\-.~:@+]/g,"_");
+function record(r){r.id=docId(r);localTrials.push(Object.assign({_synced:false,_sheet:false},r));ls.set("gf_trials",localTrials);flush();sendSheet()}
+
+/* ---------- Google Sheet ---------- */
+const sheetUrl=()=>String(ls.get("gf_sheet","")||SHEET_URL||"").trim();
+let sheetBusy=false,sheetErr="",sheetLast=null;
+async function sheetCall(body){
+  /* text/plain keeps this a "simple" request, so no CORS preflight is needed */
+  const res=await fetch(sheetUrl(),{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow"});
+  const txt=await res.text();let j;try{j=JSON.parse(txt)}catch(e){throw new Error("Unexpected reply. Check the deployment allows access to Anyone.")}
+  if(!j.ok) throw new Error(j.error||"The Sheet refused the data.");
+  return j;
+}
+async function sendSheet(){
+  if(!sheetUrl()||sheetBusy) return;
+  const pend=localTrials.filter(r=>r._sheet!==true&&r.id);
+  if(!pend.length){renderSheetStatus();return}
+  sheetBusy=true;
+  try{
+    for(let i=0;i<pend.length;i+=50){
+      const chunk=pend.slice(i,i+50).map(r=>{const d={id:r.id};COLS.forEach(c=>d[c]=r[c]);return d});
+      const j=await sheetCall({action:"append",rows:chunk});
+      const ok=new Set(j.saved||[]);localTrials.forEach(r=>{if(ok.has(r.id))r._sheet=true});
+      ls.set("gf_trials",localTrials);
+    }
+    sheetErr="";sheetLast=new Date();
+  }catch(e){sheetErr=e instanceof TypeError||!e||!e.message?"Could not reach the Sheet (offline?).":e.message}
+  sheetBusy=false;renderSheetStatus();
+}
+function sheetPending(){return localTrials.filter(r=>r._sheet!==true).length}
+function renderSheetStatus(){
+  const s=$("sheetStatus");if(!s) return;
+  if(!sheetUrl()){s.textContent="Not connected. Paste the web app URL below.";s.className="status warn";return}
+  const p=sheetPending();
+  if(sheetErr){s.textContent="Problem: "+sheetErr+(p?" "+p+" spins waiting on this device.":"");s.className="status warn";return}
+  s.textContent=p?p+" spins waiting to send…":"Connected. All spins on this device are in the Sheet"+(sheetLast?" (last sent "+sheetLast.toLocaleTimeString()+")":"")+".";
+  s.className="status "+(p?"warn":"on");
+}
+setInterval(()=>{if(sheetPending())sendSheet()},20000);
+addEventListener("online",sendSheet);
+let flushing=false;
+async function flush(){
+  if(!db||flushing) return; flushing=true;
+  for(const r of localTrials){ if(r._synced) continue;
+    const d=Object.assign({},r);delete d._synced;
+    try{await db.doc("trials/"+r.id).set(d);r._synced=true}catch(e){break}
+  }
+  ls.set("gf_trials",localTrials);flushing=false;
+}
+async function loadTrials(){
+  const map=new Map();localTrials.forEach(r=>map.set(r.id,r));
+  let cloud=false;
+  if(db){try{await flush();const s=await db.collection("trials").limit(1000).get();s.docs.forEach(d=>{const v=d.data();if(v)map.set(d.id,Object.assign({id:d.id},v))});cloud=true}catch(e){}}
+  allTrials=[...map.values()].sort((a,b)=>String(a.timestamp).localeCompare(String(b.timestamp)));
+  const pend=localTrials.filter(r=>!r._synced).length,ds=$("dataStatus");
+  const who=new Set(allTrials.map(r=>r.session_id)).size;
+  const sp=sheetPending();
+  ds.textContent=allTrials.length+" spins from "+who+" session"+(who===1?"":"s")+" on this device. "+(sheetUrl()?(sp?sp+" not yet in the Google Sheet.":"All are in the Google Sheet."):cloud?(pend?pend+" still waiting to upload.":"All saved to the shared database."):"Saved in this browser only. Connect the Google Sheet above, or copy the CSV after each participant.");
+  ds.className="status "+((sheetUrl()?!sp:cloud&&!pend)?"on":"warn");
+  const tb=$("tbl");tb.textContent="";
+  const hr=tb.insertRow();COLS.forEach(c=>{const th=document.createElement("th");th.textContent=c;hr.appendChild(th)});
+  allTrials.slice(-200).reverse().forEach(r=>{const tr=tb.insertRow();COLS.forEach(c=>{tr.insertCell().textContent=r[c]===undefined?"":r[c]})});
+  if(!allTrials.length){const td=tb.insertRow().insertCell();td.colSpan=COLS.length;td.textContent="No recorded spins yet. Start a session, then spin."}
+}
+function csv(){
+  const q=v=>{v=v===undefined||v===null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  return [COLS.join(",")].concat(allTrials.map(r=>COLS.map(c=>q(r[c])).join(","))).join("\n");
+}
+
+/* ---------- config ---------- */
+function writeCfg(patch){
+  Object.assign(cfg,patch);ls.set("gf_cfg3",cfg);
+  if(db) db.doc("config/v3").set(JSON.parse(JSON.stringify(cfg))).catch(()=>{});
+}
+function onCfg(){
+  const sid=cfg.session?cfg.session.id:null;
+  if(st.sid!==sid){st=freshState();saveState();bet=null;readyAt=performance.now();$("msg").textContent="Pick a colour to begin."}
+  renderTable(); if(!$("scrim").hidden) renderConsole(false);
+}
+
+/* ---------- experimenter console ---------- */
+function renderPreview(){}
+function renderConsole(fill){
+  if(fill!==false){$("nTrials").value=cfg.nTrials;
+    $("startBal").value=cfg.startBalance;$("goal").value=cfg.goal;$("cfgSaved").textContent=""}
+  const ss=$("sessStatus");
+  if(cfg.session){const es=endState();ss.textContent="Recording "+cfg.session.pid+" · part "+st.part+" ("+partInfo().label+") · "+st.trial+" rounds played · $"+st.balance+(es?" · finished: "+es:"");ss.className="status on"}
+  else{ss.textContent="Not recording (part "+st.part+", "+partInfo().label+"). Start a session to record spins.";ss.className="status warn"}
+  const auto=!!(cfg.auto&&cfg.session);
+  if(auto) ss.textContent+=" · Back-to-back ON · next: "+nextPid(cfg.session.pid);
+  $("autoS").hidden=auto;$("autoStop").hidden=!auto;
+  const fs=$("forceStatus"),armed=cfg.force&&cfg.force.nonce!==st.nonce;
+  fs.textContent=armed?"Armed: next spin will be "+cfg.force.token:"Nothing armed. The current part decides the next spin.";fs.className="status "+(armed?"on":"");
+  if(fill!==false) $("sheetUrl").value=sheetUrl();
+  renderSheetStatus();renderPreview();loadTrials();
+}
+$("saveSheet").onclick=()=>{const v=$("sheetUrl").value.trim();
+  if(v&&!/^https:\/\/script\.google(usercontent)?\.com\//.test(v)){$("sheetStatus").textContent="That doesn't look like an Apps Script web app URL.";$("sheetStatus").className="status warn";return}
+  ls.set("gf_sheet",v);sheetErr="";renderSheetStatus();sendSheet();loadTrials()};
+$("testSheet").onclick=async()=>{const s=$("sheetStatus");
+  if(!sheetUrl()){renderSheetStatus();return}
+  s.textContent="Testing…";s.className="status";
+  try{const j=await sheetCall({action:"ping"});sheetErr="";s.textContent="Connected to “"+(j.sheet||"your Sheet")+"”.";s.className="status on"}
+  catch(e){sheetErr=e instanceof TypeError||!e.message?"Could not reach the Sheet (offline?).":e.message;renderSheetStatus()}};
+$("syncSheet").onclick=async()=>{sheetErr="";await sendSheet();loadTrials()};
+function openConsole(){if(!canAdmin)return;$("scrim").hidden=false;renderConsole()}
+$("closeC").onclick=()=>{$("scrim").hidden=true};
+$("scrim").addEventListener("click",e=>{if(e.target===$("scrim"))$("scrim").hidden=true});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&!$("scrim").hidden){$("scrim").hidden=true;return}
+  if(e.shiftKey&&(e.key==="E"||e.key==="e")&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){e.preventDefault();$("scrim").hidden?openConsole():($("scrim").hidden=true)}
+});
+let taps=0,tapT=0;
+$("plate").addEventListener("click",()=>{const n=Date.now();taps=n-tapT<600?taps+1:1;tapT=n;if(taps>=3){taps=0;openConsole()}});
+
+function readForm(){const sb=Math.max(1,parseInt($("startBal").value,10)||DEFAULTS.startBalance);return {nTrials:Math.max(1,Math.min(500,parseInt($("nTrials").value,10)||DEFAULTS.nTrials)),
+  startBalance:sb,goal:Math.max(sb+1,parseInt($("goal").value,10)||DEFAULTS.goal)}}
+$("saveCfg").onclick=()=>{writeCfg(readForm());$("cfgSaved").textContent="Saved. Applies from the next spin.";onCfg()};
+function startSession(pid){
+  clearTimeout(advT);advT=0;st.part=1;
+  const id=(pid+"-"+Date.now().toString(36)).replace(/[^A-Za-z0-9_\-.]/g,"_");
+  writeCfg({session:{id:id,pid:pid,startedAt:new Date().toISOString()},force:null});
+  onCfg();$("pid").value=pid;
+}
+/* typing an ID that already has recorded spins needs a second click within 5 s */
+let reuseOk={pid:"",at:0};
+function reuseCheck(pid){
+  if(!localTrials.some(r=>String(r.participant_id)===pid)) return true;
+  if(reuseOk.pid===pid&&Date.now()-reuseOk.at<5000) return true;
+  reuseOk={pid:pid,at:Date.now()};
+  const s=$("sessStatus");s.textContent=pid+" already has recorded spins on this device. Click again to add to it anyway, or change the ID (next free: "+nextPid(pid)+").";s.className="status warn";
+  return false;
+}
+$("startS").onclick=()=>{
+  const pid=$("pid").value.trim();
+  if(!pid){$("sessStatus").textContent="Enter a participant ID first.";$("sessStatus").className="status warn";$("pid").focus();return}
+  if(!reuseCheck(pid)) return;
+  writeCfg(Object.assign(readForm(),{auto:false}));startSession(pid);$("scrim").hidden=true;
+};
+$("autoS").onclick=()=>{
+  let pid=$("pid").value.trim();
+  if(!pid) pid=nextPid("P000");
+  if(!reuseCheck(pid)) return;
+  writeCfg(Object.assign(readForm(),{auto:true}));startSession(pid);$("scrim").hidden=true;
+};
+$("autoStop").onclick=()=>{writeCfg({auto:false});renderTable();renderConsole(false)};
+$("endS").onclick=()=>{writeCfg({session:null,auto:false});onCfg()};
+function arm(tok){writeCfg({force:{token:tok,nonce:Date.now().toString(36)+rnd(1e6)}});renderConsole(false)}
+[["Red","R"],["Black","B"],["Participant wins","W"],["Participant loses","L"]].forEach(([n,t])=>{
+  const b=document.createElement("button");b.className="btn sm";b.textContent=n;b.onclick=()=>arm(t);$("forceBtns").appendChild(b)});
+$("forceClear").onclick=()=>{writeCfg({force:null});renderConsole(false)};
+$("refresh").onclick=loadTrials;
+$("copyCsv").onclick=async()=>{
+  const text=csv(),b=$("copyCsv");
+  try{await navigator.clipboard.writeText(text);b.textContent="Copied";}
+  catch(e){const o=$("csvOut");o.hidden=false;o.value=text;o.focus();o.select();b.textContent="Select all, then copy"}
+  setTimeout(()=>{b.textContent="Copy as CSV"},2500);
+};
+$("saveCsv").onclick=async()=>{const b=$("saveCsv");try{await downloads.save({filename:"roulette-trials.csv",data:csv()});b.textContent="Saved"}catch(e){b.textContent="Not saved"}setTimeout(()=>{b.textContent="Save CSV file"},2500)};
+let wipeArmed=0;
+$("wipe").onclick=async()=>{
+  const b=$("wipe");
+  if(Date.now()-wipeArmed>5000){wipeArmed=Date.now();b.textContent="Click again to delete everything";setTimeout(()=>{b.textContent="Delete all data"},5000);return}
+  wipeArmed=0;b.textContent="Deleting…";
+  if(db) for(const r of allTrials){try{await db.doc("trials/"+r.id).delete()}catch(e){}}
+  localTrials=[];ls.set("gf_trials",localTrials);b.textContent="Delete all data";loadTrials();
+};
+
+/* ---------- boot ---------- */
+draw();renderTable();maybeAdvance();sendSheet();
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(draw);
+(async()=>{
+  const use=n=>{try{return window.claude&&window.claude.use?window.claude.use(n):Promise.resolve(null)}catch(e){return Promise.resolve(null)}};
+  const [d,u,dl]=await Promise.all([use("db"),use("user"),use("downloads")]);
+  db=d;downloads=dl;$("saveCsv").hidden=!dl;
+  if(u){try{canAdmin=await u.canEdit()}catch(e){}}
+  if(db){
+    db.doc("config/v3").onSnapshot(s=>{if(s.exists){cfg=Object.assign({},DEFAULTS,s.data());ls.set("gf_cfg3",cfg);onCfg()}},()=>{});
+    flush();
+  }
+})();
+})();
+</script>
+
+</body></html>
